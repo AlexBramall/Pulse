@@ -26,23 +26,26 @@ final class MemoryMonitor {
         let compressed = Double(stats.compressor_page_count) * pageSize
         let used = min((wired + active + compressed) / 1_073_741_824, total)
 
-        let free = Double(stats.free_count + stats.inactive_count) * pageSize / 1_073_741_824
-        let freeRatio = total > 0 ? free / total : 1
-
         var swapInfo = xsw_usage()
         var swapSize = MemoryLayout<xsw_usage>.size
         sysctlbyname("vm.swapusage", &swapInfo, &swapSize, nil, 0)
         let swapUsed = Double(swapInfo.xsu_used) / 1_073_741_824
 
-        let pressure: MemoryPressure
-        if freeRatio < 0.08 || swapUsed > 4 {
-            pressure = .critical
-        } else if freeRatio < 0.20 || swapUsed > 0.5 {
-            pressure = .elevated
-        } else {
-            pressure = .normal
-        }
+        return (used, total, kernelPressure(), swapUsed)
+    }
 
-        return (used, total, pressure, swapUsed)
+    // The kernel's own level (what Activity Monitor graphs): 1 normal, 2 warning, 4 critical.
+    // Swap size alone is a poor signal; macOS can hold several GB of swap at normal pressure.
+    private func kernelPressure() -> MemoryPressure {
+        var level: Int32 = 0
+        var size = MemoryLayout<Int32>.size
+        guard sysctlbyname("kern.memorystatus_vm_pressure_level", &level, &size, nil, 0) == 0 else {
+            return .normal
+        }
+        switch level {
+        case 4...: return .critical
+        case 2...: return .elevated
+        default:   return .normal
+        }
     }
 }
