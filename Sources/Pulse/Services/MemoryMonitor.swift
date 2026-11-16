@@ -21,10 +21,11 @@ final class MemoryMonitor {
         }
 
         let pageSize = Double(vm_kernel_page_size)
-        let wired      = Double(stats.wire_count)           * pageSize
-        let active     = Double(stats.active_count)         * pageSize
+        // Activity Monitor's "Memory Used": app memory + wired + compressed.
+        let app        = Double(stats.internal_page_count &- stats.purgeable_count) * pageSize
+        let wired      = Double(stats.wire_count)            * pageSize
         let compressed = Double(stats.compressor_page_count) * pageSize
-        let used = min((wired + active + compressed) / 1_073_741_824, total)
+        let used = min((app + wired + compressed) / 1_073_741_824, total)
 
         var swapInfo = xsw_usage()
         var swapSize = MemoryLayout<xsw_usage>.size
