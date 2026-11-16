@@ -13,7 +13,7 @@ struct PopoverView: View {
                     Divider().padding(.horizontal, 14)
                     cpuSection
                     Divider().padding(.horizontal, 14)
-                    batterySection
+                    gpuSection
                     Divider().padding(.horizontal, 14)
                     diskSection
                 }
@@ -114,55 +114,38 @@ struct PopoverView: View {
         }
     }
 
-    // MARK: - Battery
+    // MARK: - GPU
 
-    private var batterySection: some View {
-        MetricSectionView(title: "Battery & Thermals", icon: "battery.100percent") {
-            let b = metrics.current.battery
+    private var gpuSection: some View {
+        MetricSectionView(title: "GPU", icon: "square.stack.3d.up") {
+            let g = metrics.current.gpu
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .center, spacing: 8) {
-                    ProgressBarView(value: Double(b.percentage) / 100, tint: batteryColor(b.percentage))
-                    HStack(spacing: 4) {
-                        Text("\(b.percentage)%")
-                            .font(.system(size: 11, design: .monospaced))
-                        if b.isCharging {
-                            Image(systemName: "bolt.fill")
-                                .font(.system(size: 9))
-                                .foregroundStyle(.green)
-                        }
-                    }
-                    .fixedSize()
+                    ProgressBarView(value: g.usage, tint: cpuColor(g.usage))
+                    Text("\(Int(g.usage * 100))%")
+                        .font(.system(size: 11, design: .monospaced))
+                        .foregroundStyle(.secondary)
+                        .fixedSize()
                 }
-                HStack(spacing: 12) {
-                    Label("\(b.health)% health", systemImage: "heart")
+                HStack(spacing: 6) {
+                    Circle()
+                        .fill(gpuStatusColor(g.status))
+                        .frame(width: 5, height: 5)
+                    Text("Status: \(g.status.rawValue)")
                         .font(.system(size: 11))
-                        .foregroundStyle(b.health < 80 ? .orange : .secondary)
-                    Text("\(b.cycleCount) cycles")
+                    Spacer()
+                    Text(String(format: "%.1f GB in use", g.memoryUsed))
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
-                if let cpuTemp = b.cpuTemp {
-                    HStack(spacing: 12) {
-                        Label(String(format: "CPU %.0f°C", cpuTemp), systemImage: "thermometer.medium")
-                            .font(.system(size: 11))
-                            .foregroundStyle(tempColor(cpuTemp))
-                        if let gpuTemp = b.gpuTemp {
-                            Label(String(format: "GPU %.0f°C", gpuTemp), systemImage: "thermometer.medium")
-                                .font(.system(size: 11))
-                                .foregroundStyle(tempColor(gpuTemp))
-                        }
-                        if let fan = b.fanRPM {
-                            Spacer()
-                            Label("\(fan) RPM", systemImage: "fan")
-                                .font(.system(size: 11))
-                                .foregroundStyle(.secondary)
-                        }
-                    }
-                } else {
-                    Text("Thermals available in a future update")
-                        .font(.system(size: 10))
-                        .foregroundStyle(.quaternary)
-                        .italic()
+                if g.thermalState == .serious || g.thermalState == .critical {
+                    Label("Thermal throttling", systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.red)
+                } else if g.sustained {
+                    Label("Sustained high load", systemImage: "exclamationmark.triangle.fill")
+                        .font(.system(size: 11))
+                        .foregroundStyle(.orange)
                 }
             }
         }
@@ -239,21 +222,17 @@ struct PopoverView: View {
         return .blue
     }
 
-    private func batteryColor(_ pct: Int) -> Color {
-        if pct <= 15 { return .red }
-        if pct <= 30 { return .orange }
-        return .green
+    private func gpuStatusColor(_ s: GPUStatus) -> Color {
+        switch s {
+        case .normal:     return .blue
+        case .busy:       return .orange
+        case .overworked: return .red
+        }
     }
 
     private func diskColor(_ freeGB: Double) -> Color {
         if freeGB < 5  { return .red }
         if freeGB < 20 { return .orange }
         return .blue
-    }
-
-    private func tempColor(_ temp: Double) -> Color {
-        if temp > 90 { return .red }
-        if temp > 70 { return .orange }
-        return .secondary
     }
 }

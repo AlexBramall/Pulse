@@ -3,7 +3,7 @@ import Foundation
 struct SystemMetrics {
     var cpu: CPUMetrics
     var memory: MemoryMetrics
-    var battery: BatteryMetrics
+    var gpu: GPUMetrics
     var disk: DiskMetrics
 }
 
@@ -29,16 +29,7 @@ extension SystemMetrics {
             ],
             swapUsed: 0
         ),
-        battery: BatteryMetrics(
-            percentage: 84,
-            isCharging: true,
-            health: 91,
-            cycleCount: 312,
-            cpuTemp: nil,
-            gpuTemp: nil,
-            fanRPM: nil,
-            isOnACPower: true
-        ),
+        gpu: GPUMetrics(usage: 0.22, memoryUsed: 1.4, thermalState: .nominal, sustained: false),
         disk: DiskMetrics(used: 241, total: 512)
     )
 }
@@ -66,15 +57,23 @@ enum MemoryPressure: String {
     case critical = "Critical"
 }
 
-struct BatteryMetrics {
-    var percentage: Int
-    var isCharging: Bool
-    var health: Int                 // 0–100
-    var cycleCount: Int
-    var cpuTemp: Double?            // °C, nil until M3
-    var gpuTemp: Double?            // °C, nil until M3
-    var fanRPM: Int?                // nil on fanless Macs
-    var isOnACPower: Bool
+struct GPUMetrics {
+    var usage: Double               // 0.0–1.0, Device Utilization
+    var memoryUsed: Double          // GB
+    var thermalState: ProcessInfo.ThermalState
+    var sustained: Bool
+
+    var status: GPUStatus {
+        if sustained || thermalState == .serious || thermalState == .critical { return .overworked }
+        if usage > 0.60 || thermalState == .fair { return .busy }
+        return .normal
+    }
+}
+
+enum GPUStatus: String {
+    case normal     = "Normal"
+    case busy       = "Busy"
+    case overworked = "Overworked"
 }
 
 struct DiskMetrics {

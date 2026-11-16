@@ -8,11 +8,12 @@ final class MetricsService: ObservableObject {
     private let cpu        = CPUMonitor()
     private let memory     = MemoryMonitor()
     private let processes  = ProcessMonitor()
-    private let battery    = BatteryMonitor()
+    private let gpu        = GPUMonitor()
     private let disk       = DiskMonitor()
 
     private var pollingTask: Task<Void, Never>?
     private var cpuLoad = SustainedLoadTracker()
+    private var gpuLoad = SustainedLoadTracker()
     let pollInterval: TimeInterval = 3.0
 
     init() {
@@ -37,7 +38,7 @@ final class MetricsService: ObservableObject {
 
         let (memUsed, memTotal, pressure, swapUsed) = memory.sample()
         let topMemProcs = processes.topByMemory(limit: 3)
-        let bat = battery.sample()
+        let (gpuUsage, gpuMemory) = gpu.sample()
         let dsk = disk.sample()
 
         current = SystemMetrics(
@@ -53,7 +54,12 @@ final class MetricsService: ObservableObject {
                 topProcesses: topMemProcs,
                 swapUsed: swapUsed
             ),
-            battery: bat,
+            gpu: GPUMetrics(
+                usage: gpuUsage,
+                memoryUsed: gpuMemory,
+                thermalState: ProcessInfo.processInfo.thermalState,
+                sustained: gpuLoad.update(gpuUsage)
+            ),
             disk: dsk
         )
     }
@@ -67,16 +73,15 @@ final class MetricsService: ObservableObject {
     var menuBarText: String {
         let ram = Int(current.memory.usageRatio * 100)
         let cpu = Int(current.cpu.usage * 100)
-        let bat = current.battery.percentage
-        return "RAM \(ram)%  CPU \(cpu)%  \(bat)%"
+        let gpu = Int(current.gpu.usage * 100)
+        return "RAM \(ram)%  CPU \(cpu)%  GPU \(gpu)%"
     }
 
     var healthTint: Color {
-        switch current.memory.pressure {
-        case .critical: return .red
-        case .elevated: return .orange
-        case .normal:
-            return current.cpu.usage > 0.85 ? .orange : .primary
+        if current.memory.pressure == .critical || current.gpu.status == .overworked { return .red }
+        if current.memory.pressure == .elevated || current.cpu.usage > 0.85 || current.gpu.usage > 0.85 {
+            return .orange
         }
+        return .primary
     }
 }
