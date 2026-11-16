@@ -1,5 +1,5 @@
 import Foundation
-import SwiftUI
+import Combine
 
 @MainActor
 final class MetricsService: ObservableObject {
@@ -66,22 +66,5 @@ final class MetricsService: ObservableObject {
 
     deinit {
         pollingTask?.cancel()
-    }
-
-    // MARK: - Menu bar helpers
-
-    var menuBarText: String {
-        let ram = Int(current.memory.usageRatio * 100)
-        let cpu = Int(current.cpu.usage * 100)
-        let gpu = Int(current.gpu.usage * 100)
-        return "RAM \(ram)%  CPU \(cpu)%  GPU \(gpu)%"
-    }
-
-    var healthTint: Color {
-        if current.memory.pressure == .critical || current.gpu.status == .overworked { return .red }
-        if current.memory.pressure == .elevated || current.cpu.usage > 0.85 || current.gpu.usage > 0.85 {
-            return .orange
-        }
-        return .primary
     }
 }

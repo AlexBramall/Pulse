@@ -14,7 +14,7 @@ A lightweight, native macOS menu bar app that keeps you informed of your system'
 Pulse lives in your menu bar and polls your Mac's CPU, RAM, GPU, and disk every 3 seconds. Click the icon for a clean popover with per-metric detail and a list of your top memory-hungry processes. No Dock icon, no background windows, no noise — just the signal you need.
 
 ```
-RAM 71%  CPU 18%  GPU 22%   ← always visible in menu bar
+RAM 71%  CPU 18%  GPU 22%   ← always visible in menu bar; each turns orange or red on its own
 
 ┌─────────────────────────────────┐
 │  ♥ Pulse  ·  System Health      │
@@ -43,7 +43,8 @@ RAM 71%  CPU 18%  GPU 22%   ← always visible in menu bar
 ## Features
 
 - **Always-on menu bar readout** — RAM, CPU, and GPU at a glance without opening anything
-- **Live memory pressure** — tracks Normal / Elevated / Critical kernel pressure state with colour coding
+- **Danger-zone colours in the menu bar** — each metric turns orange when it is under strain and red when the Mac is at risk of freezing (see the table below)
+- **Live memory pressure** — reads the kernel's own Normal / Elevated / Critical pressure level
 - **Top memory consumers** — shows the top 3 processes by resident memory so you know what's eating your RAM
 - **CPU monitoring** — overall utilisation with a sustained high-load warning after 60 seconds above 85%
 - **GPU health** — utilization, GPU memory in use, and a Normal / Busy / Overworked status that accounts for sustained load and thermal state
@@ -104,7 +105,17 @@ Launch the app and it will appear in your menu bar immediately — no setup requ
 | Click menu bar icon | Open the detail popover |
 | Click **Full Detail** | Opens the extended window with history graphs *(coming in M7)* |
 | Click **Settings** | Configure thresholds, polling interval, launch at login *(coming in M6)* |
-| Quit | Right-click the menu bar icon → Quit |
+| Quit | Right-click the menu bar icon → Quit Pulse |
+
+### Menu bar colours
+
+| Metric | Orange (warning) | Red (danger) |
+|---|---|---|
+| RAM | Kernel memory pressure is Elevated | Kernel memory pressure is Critical |
+| CPU | Above 85% right now | Above 85% for more than 60 seconds |
+| GPU | Above 85% right now | Above 85% for more than 60 seconds, or macOS reports serious or critical thermal state |
+
+RAM is coloured by pressure, not by percent used: macOS keeps RAM full on purpose, so a high percentage alone is normal.
 
 ---
 
@@ -115,8 +126,8 @@ Pulse/
 ├── Package.swift
 └── Sources/
     └── Pulse/
-        ├── PulseApp.swift           # @main entry point, MenuBarExtra scene
-        ├── AppDelegate.swift        # Hides Dock icon on launch
+        ├── PulseApp.swift           # @main entry point
+        ├── AppDelegate.swift        # Status item, popover, right-click menu
         ├── Models/
         │   └── SystemMetrics.swift  # Data models: CPU, Memory, GPU, Disk
         ├── Services/
@@ -128,6 +139,7 @@ Pulse/
         │   ├── SustainedLoadTracker.swift # >85% for 60s detection (CPU, GPU)
         │   └── DiskMonitor.swift    # FileManager attributesOfFileSystem
         └── Views/
+            ├── MenuBarLabel.swift      # Per-metric coloured menu bar title
             ├── PopoverView.swift       # Main popover content
             ├── MetricSectionView.swift # Reusable section header wrapper
             └── ProgressBarView.swift   # Animated progress bar component
@@ -154,14 +166,14 @@ System APIs
   - Publishes `current: SystemMetrics`      │
     │                                       │
     ▼                                       │
-[PulseApp]  (MenuBarExtra)                  │
-  - label: menu bar text from MetricsService│
-  - content: PopoverView                    │
+[AppDelegate]  (NSStatusItem + NSPopover)   │
+  - title: MenuBarLabel, one colour per metric
+  - popover: PopoverView                    │
     │                                       │
     ▼                                       │
 [PopoverView]  (reads via @EnvironmentObject)
   - Renders all metric sections
-  - All colour logic lives here
+  - Bar and dot colours
 ```
 
 Each `XxxMonitor` is a plain Swift class with no state dependencies — they only read from system APIs and return values. `MetricsService` owns them, calls them on a background-safe `Task`, and publishes the result to the UI on the main actor.
@@ -195,7 +207,9 @@ Each `XxxMonitor` is a plain Swift class with no state dependencies — they onl
 
 **CPU measurement** uses `host_processor_info` with a tick-delta approach — two consecutive samples are diffed to compute the actual percentage of time each core spent in user/system/nice vs idle states. The first sample always returns 0% (no baseline).
 
-**Memory pressure** is derived from the ratio of free+inactive pages to total physical memory, combined with swap usage, since the kernel's internal pressure level is not exposed via a public API. This matches Activity Monitor's behaviour closely in practice.
+**Memory pressure** reads `kern.memorystatus_vm_pressure_level` (1 normal, 2 warning, 4 critical), the same level Activity Monitor graphs. Swap size is shown but not used to judge pressure, because macOS can hold several GB of swap at normal pressure.
+
+**Menu bar colours** need an AppKit `NSStatusItem` with an attributed title. SwiftUI's `MenuBarExtra` renders its label as a template image and drops any colour.
 
 **GPU health** reads the `PerformanceStatistics` dictionary of each `IOAccelerator` service in the IOKit registry: `Device Utilization %` for load and `In use system memory` for GPU memory. With several GPUs, the highest utilization wins and memory is summed. The status is Overworked after 60 seconds above 85% or when macOS reports a serious or critical thermal state, and Busy above 60% or at a fair thermal state.
 

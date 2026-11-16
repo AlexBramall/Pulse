@@ -7,17 +7,13 @@ struct PopoverView: View {
         VStack(spacing: 0) {
             header
             Divider()
-            ScrollView(showsIndicators: false) {
-                VStack(spacing: 0) {
-                    memorySection
-                    Divider().padding(.horizontal, 14)
-                    cpuSection
-                    Divider().padding(.horizontal, 14)
-                    gpuSection
-                    Divider().padding(.horizontal, 14)
-                    diskSection
-                }
-            }
+            memorySection
+            Divider().padding(.horizontal, 14)
+            cpuSection
+            Divider().padding(.horizontal, 14)
+            gpuSection
+            Divider().padding(.horizontal, 14)
+            diskSection
             Divider()
             footer
         }
@@ -138,7 +134,7 @@ struct PopoverView: View {
                         .font(.system(size: 11))
                         .foregroundStyle(.secondary)
                 }
-                if g.thermalState == .serious || g.thermalState == .critical {
+                if g.isThrottling {
                     Label("Thermal throttling", systemImage: "exclamationmark.triangle.fill")
                         .font(.system(size: 11))
                         .foregroundStyle(.red)

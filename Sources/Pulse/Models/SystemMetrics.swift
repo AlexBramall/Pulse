@@ -51,10 +51,29 @@ struct MemoryMetrics {
     var free: Double { total - used }
 }
 
+enum Severity {
+    case normal, warning, danger
+}
+
 enum MemoryPressure: String {
     case normal   = "Normal"
     case elevated = "Elevated"
     case critical = "Critical"
+
+    var severity: Severity {
+        switch self {
+        case .normal:   return .normal
+        case .elevated: return .warning
+        case .critical: return .danger
+        }
+    }
+}
+
+extension CPUMetrics {
+    var severity: Severity {
+        if sustained { return .danger }
+        return usage > SustainedLoadTracker.threshold ? .warning : .normal
+    }
 }
 
 struct GPUMetrics {
@@ -63,9 +82,11 @@ struct GPUMetrics {
     var thermalState: ProcessInfo.ThermalState
     var sustained: Bool
 
+    var isThrottling: Bool { thermalState == .serious || thermalState == .critical }
+
     var status: GPUStatus {
-        if sustained || thermalState == .serious || thermalState == .critical { return .overworked }
-        if usage > 0.60 || thermalState == .fair { return .busy }
+        if sustained || isThrottling { return .overworked }
+        if usage > SustainedLoadTracker.threshold { return .busy }
         return .normal
     }
 }
@@ -74,6 +95,14 @@ enum GPUStatus: String {
     case normal     = "Normal"
     case busy       = "Busy"
     case overworked = "Overworked"
+
+    var severity: Severity {
+        switch self {
+        case .normal:     return .normal
+        case .busy:       return .warning
+        case .overworked: return .danger
+        }
+    }
 }
 
 struct DiskMetrics {
