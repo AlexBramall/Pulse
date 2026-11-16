@@ -12,7 +12,7 @@ final class MetricsService: ObservableObject {
     private let disk       = DiskMonitor()
 
     private var pollingTask: Task<Void, Never>?
-    private var sustainedHighStart: Date?
+    private var cpuLoad = SustainedLoadTracker()
     let pollInterval: TimeInterval = 3.0
 
     init() {
@@ -33,13 +33,7 @@ final class MetricsService: ObservableObject {
     private func refresh() {
         let cpuUsage = cpu.sample()
 
-        // Track sustained high CPU load
-        if cpuUsage > 0.85 {
-            if sustainedHighStart == nil { sustainedHighStart = Date() }
-        } else {
-            sustainedHighStart = nil
-        }
-        let sustained = sustainedHighStart.map { Date().timeIntervalSince($0) > 60 } ?? false
+        let sustained = cpuLoad.update(cpuUsage)
 
         let (memUsed, memTotal, pressure, swapUsed) = memory.sample()
         let topMemProcs = processes.topByMemory(limit: 3)
